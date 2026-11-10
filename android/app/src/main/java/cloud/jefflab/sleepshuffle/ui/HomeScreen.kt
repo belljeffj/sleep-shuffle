@@ -58,15 +58,22 @@ fun HomeScreen(onPlay: (String, TimerSpec) -> Unit, onSettings: () -> Unit) {
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(
-                Modifier
-                    .widthIn(max = 560.dp)
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 8.dp, top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Sleep Shuffle", color = Pal.Faint, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                TextLink("Settings", onClick = onSettings)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    Modifier
+                        .widthIn(max = 560.dp)
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 8.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Sleep Shuffle", color = Pal.Faint, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    TextLink("Settings", onClick = onSettings)
+                }
+                UpdateBanner(
+                    Modifier
+                        .widthIn(max = 560.dp)
+                        .padding(horizontal = 20.dp),
+                )
             }
 
             Column(

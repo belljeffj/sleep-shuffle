@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Playback.init(applicationContext)
+        Updater.checkOnLaunch(applicationContext)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.BLACK),
             navigationBarStyle = SystemBarStyle.dark(Color.BLACK),

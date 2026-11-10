@@ -203,6 +203,8 @@ fun SettingsScreen(onBack: () -> Unit, onSignedOut: () -> Unit) {
                 onSignedOut()
             }
             Spacer(Modifier.height(24.dp))
+            UpdateSection()
+            Spacer(Modifier.height(24.dp))
             Text(
                 "Sleep Shuffle never reports playback to Jellyfin. Recent plays and bans are kept on this device only.",
                 color = Pal.Faint,

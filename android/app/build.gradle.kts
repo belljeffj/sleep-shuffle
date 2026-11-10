@@ -4,6 +4,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Version comes from the release tag in CI (android-v1.2.0 -> -PappVersion=1.2.0).
+val appVersion = (findProperty("appVersion") as String?) ?: "1.1.0"
+val versionParts = appVersion.split(".").map { it.toIntOrNull() ?: 0 } + listOf(0, 0, 0)
+val appVersionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+
 android {
     namespace = "cloud.jefflab.sleepshuffle"
     compileSdk = 36
@@ -12,13 +17,26 @@ android {
         applicationId = "cloud.jefflab.sleepshuffle"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersion
+    }
+
+    // Releases are signed with the same key as the copy already on the phone (the Mac's debug
+    // keystore), so updates install over it and keep history and bans. CI supplies it from secrets.
+    signingConfigs {
+        create("release") {
+            val ks = System.getenv("SIGNING_KEYSTORE")
+            storeFile = if (ks != null) file(ks) else file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: "android"
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: "androiddebugkey"
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: "android"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
