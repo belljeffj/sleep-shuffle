@@ -13,7 +13,7 @@ permissions:
 env:
   # Same checksum-pinned NextUI/TrimUI toolchain the PokeDaisy H700 builds use, via PokeDaisy's own setup script.
   POKEDAISY_SHA: 135ac809a597230c1fe3ad6359ae0fe81e233583
-  FFMPEG_TAG: n7.1.1
+  FFMPEG_TAG: n6.1.2  # matches the desktop test build; 7.1 minimal builds miss aom_film_grain
 
 jobs:
   build:
