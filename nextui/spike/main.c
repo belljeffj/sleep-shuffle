@@ -32,7 +32,7 @@
 #include "font.h"
 #include "net.h"
 
-#define APP_VERSION "0.1.1-test"
+#define APP_VERSION "0.1.2-test"
 #define RING 8
 #define OUT_RATE 48000
 
@@ -323,19 +323,21 @@ static void new_session(void) {
     P.play_session[32] = 0;
 }
 
+static int g_sw = 640, g_sh = 480; /* screen size, for the transcode */
+
 static void stream_url(char *url, size_t n, int audio_route) {
     long long ticks = (long long)(P.start_pos * 10000000.0);
     if (audio_route)
         snprintf(url, n,
                  "%s/Audio/%s/stream.mp3?container=mp3&audioCodec=mp3&audioBitRate=128000&audioChannels=2"
-                 "&deviceId=%s&playSessionId=%s&startTimeTicks=%lld&api_key=%s",
+                 "&deviceId=%s&playSessionId=%s&startTimeTicks=%lld&ApiKey=%s",
                  cfg.server, P.item_id, cfg.device_id, P.play_session, ticks, cfg.token);
     else
         snprintf(url, n,
                  "%s/Videos/%s/master.m3u8?mediaSourceId=%s&deviceId=%s&playSessionId=%s"
-                 "&videoCodec=h264&audioCodec=aac&maxAudioChannels=2&maxWidth=640&maxHeight=480"
-                 "&videoBitrate=1200000&audioBitrate=128000&segmentContainer=ts&api_key=%s",
-                 cfg.server, P.item_id, P.item_id, cfg.device_id, P.play_session, cfg.token);
+                 "&videoCodec=h264&audioCodec=aac&maxAudioChannels=2&maxWidth=%d&maxHeight=%d"
+                 "&videoBitrate=1200000&audioBitrate=128000&segmentContainer=ts&ApiKey=%s",
+                 cfg.server, P.item_id, P.item_id, cfg.device_id, P.play_session, g_sw, g_sh, cfg.token);
 }
 
 static void stop_server_transcode(void) {
@@ -371,6 +373,12 @@ static void play_once(void) {
         fmt->interrupt_callback.callback = interrupt_cb;
         AVDictionary *o = NULL;
         av_dict_set(&o, "rw_timeout", "15000000", 0);
+        {
+            char auth[512], hdr[600];
+            auth_header(auth, sizeof auth);
+            snprintf(hdr, sizeof hdr, "Authorization: %s\r\n", auth);
+            av_dict_set(&o, "headers", hdr, 0);
+        }
         av_dict_set(&o, "reconnect", "1", 0);
         av_dict_set(&o, "probesize", "1000000", 0);
         av_dict_set(&o, "analyzeduration", "3000000", 0);
@@ -655,6 +663,8 @@ int main(int argc, char **argv) {
     }
     logm("display mode %dx%d @%dHz", dm.w, dm.h, dm.refresh_rate);
     int windowed = getenv("SS_WINDOWED") != NULL;
+    g_sw = SW;
+    g_sh = SH;
     STEP("create window");
     if (windowed) SW = 640, SH = 480;
     SDL_Window *win = SDL_CreateWindow("Sleep Shuffle test", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SW, SH,
@@ -718,6 +728,8 @@ int main(int argc, char **argv) {
     char qc_code[16] = "", qc_secret[128] = "", err[256] = "";
     Uint32 qc_next = 0, hint_until = 0, stats_next = SDL_GetTicks() + 10000, audio_since = 0;
     int show_stats = 0, running = 1, screen_off = 0;
+    char last_btn[48] = "";
+    Uint32 last_btn_until = 0;
     SDL_Texture *vtex = NULL;
     int tw = 0, th_ = 0;
     const char *autotest = getenv("SS_AUTOTEST");
@@ -790,6 +802,9 @@ int main(int argc, char **argv) {
             else if (e.type == SDL_CONTROLLERBUTTONDOWN) {
                 logm("controller button %d (%s)", e.cbutton.button,
                      SDL_GameControllerGetStringForButton(e.cbutton.button));
+                snprintf(last_btn, sizeof last_btn, "Button: %s",
+                         SDL_GameControllerGetStringForButton(e.cbutton.button));
+                last_btn_until = now + 1500;
                 switch (e.cbutton.button) {
                 case SDL_CONTROLLER_BUTTON_A: act_toggle = 1; break;
                 case SDL_CONTROLLER_BUTTON_B:
@@ -999,6 +1014,7 @@ int main(int argc, char **argv) {
                 text(0, 16, 150, 230, l);
             }
         }
+        if (now < last_btn_until) text(0, SW - text_w(0, last_btn) - 16, 12, 230, last_btn);
         SDL_RenderPresent(ren);
         SDL_Delay(screen_off ? 50 : 4);
     }
