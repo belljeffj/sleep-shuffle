@@ -1399,7 +1399,12 @@ int main(int argc, char **argv) {
             snprintf(helper, sizeof helper, "%s/bin/suspend", sys ? sys : "/mnt/SDCARD/.system/h700");
             if (stat(helper, &st_) == 0) {
                 device_sleep();
-                g_base[0] = 0; /* Wi-Fi may have reconnected on another network */
+                /* NextUI's helper stops Wi-Fi for sleep and restarts it on wake: wait for Jellyfin */
+                g_base[0] = 0;
+                for (int i = 0; i < 20 && jf_resolve(1) != 0; i++) {
+                    busy("Reconnecting...");
+                    SDL_Delay(1000);
+                }
                 if (was_playing) {
                     if (stop_at > 0 && remaining_s() <= 0) {
                         timer_done = 1;

@@ -5,6 +5,8 @@ PAK_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 SD="${SDCARD_PATH:-/mnt/SDCARD}"
 DATA="$SD/SleepShuffle"
 LOG_DIR="${LOGS_PATH:-$DATA}"
+# NextUI's sleep helper needs SYSTEM_PATH
+export SYSTEM_PATH="${SYSTEM_PATH:-$SD/.system/${PLATFORM:-h700}}"
 mkdir -p "$DATA" "$LOG_DIR"
 LOG="$LOG_DIR/SleepShuffle.txt"
 if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 2000000 ]; then mv -f "$LOG" "$LOG.old"; fi

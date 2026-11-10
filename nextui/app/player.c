@@ -63,7 +63,8 @@ static void new_session(void) {
     P.session[32] = 0;
 }
 
-/* route 0: progressive TS from the start position (video), 1: HLS + seek (video fallback),
+/* route 0: progressive TS from the start position (video; Baseline H.264, which the RG SP decodes at a steady
+ * 24 fps), 1: HLS + seek (video fallback),
  * 2: MP3 from the start position (audio only), 3: progressive TS with video discarded (audio fallback) */
 static void make_url(char *url, size_t n, int route) {
     long long ticks = (long long)(P.start * 1e7);
@@ -73,7 +74,7 @@ static void make_url(char *url, size_t n, int route) {
     case 3:
         snprintf(url, n,
                  "%s/Videos/%s/stream.ts?container=ts&mediaSourceId=%s&deviceId=%s&playSessionId=%s&static=false"
-                 "&videoCodec=h264&audioCodec=aac&audioChannels=2&maxWidth=%d&maxHeight=%d"
+                 "&videoCodec=h264&profile=baseline&audioCodec=aac&audioChannels=2&maxWidth=%d&maxHeight=%d"
                  "&videoBitRate=1200000&audioBitRate=128000&startTimeTicks=%lld&ApiKey=%s",
                  b, P.item, P.item, cfg.device_id, P.session, P.sw, P.sh, ticks, cfg.token);
         break;
