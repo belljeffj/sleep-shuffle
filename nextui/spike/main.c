@@ -32,7 +32,7 @@
 #include "font.h"
 #include "net.h"
 
-#define APP_VERSION "0.1.2-test"
+#define APP_VERSION "0.1.3-test"
 #define RING 8
 #define OUT_RATE 48000
 
@@ -621,6 +621,23 @@ static int pick_episode(void) {
     return ok ? 0 : -1;
 }
 
+/* ---------------------------------------------------------------- buttons */
+
+/* SDL names face buttons by position (Xbox layout). The RG SP is printed SNES-style: A right,
+ * B bottom, X top, Y left. PokeDaisy H700 does the same swap. Returns the label on the device. */
+static const char *face_label(int sdl_button) {
+    switch (sdl_button) {
+    case SDL_CONTROLLER_BUTTON_A: return "B"; /* bottom */
+    case SDL_CONTROLLER_BUTTON_B: return "A"; /* right */
+    case SDL_CONTROLLER_BUTTON_X: return "Y"; /* left */
+    case SDL_CONTROLLER_BUTTON_Y: return "X"; /* top */
+    case SDL_CONTROLLER_BUTTON_START: return "START";
+    case SDL_CONTROLLER_BUTTON_BACK: return "SELECT";
+    case SDL_CONTROLLER_BUTTON_GUIDE: return "MENU";
+    default: return SDL_GameControllerGetStringForButton(sdl_button);
+    }
+}
+
 /* ---------------------------------------------------------------- main */
 
 enum { S_NEED_SERVER, S_QC, S_PLAY, S_ERROR };
@@ -800,19 +817,15 @@ int main(int argc, char **argv) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = 0;
             else if (e.type == SDL_CONTROLLERBUTTONDOWN) {
-                logm("controller button %d (%s)", e.cbutton.button,
-                     SDL_GameControllerGetStringForButton(e.cbutton.button));
-                snprintf(last_btn, sizeof last_btn, "Button: %s",
-                         SDL_GameControllerGetStringForButton(e.cbutton.button));
+                logm("controller button %d (sdl %s, device label %s)", e.cbutton.button,
+                     SDL_GameControllerGetStringForButton(e.cbutton.button), face_label(e.cbutton.button));
+                const char *lbl = face_label(e.cbutton.button);
+                snprintf(last_btn, sizeof last_btn, "Button: %s", lbl ? lbl : "?");
                 last_btn_until = now + 1500;
-                switch (e.cbutton.button) {
-                case SDL_CONTROLLER_BUTTON_A: act_toggle = 1; break;
-                case SDL_CONTROLLER_BUTTON_B:
-                case SDL_CONTROLLER_BUTTON_START: running = 0; break;
-                case SDL_CONTROLLER_BUTTON_X: show_stats = !show_stats; break;
-                case SDL_CONTROLLER_BUTTON_Y: act_next = 1; break;
-                default: break;
-                }
+                if (lbl && !strcmp(lbl, "A")) act_toggle = 1;
+                else if (lbl && (!strcmp(lbl, "B") || !strcmp(lbl, "START"))) running = 0;
+                else if (lbl && !strcmp(lbl, "X")) show_stats = !show_stats;
+                else if (lbl && !strcmp(lbl, "Y")) act_next = 1;
                 if (screen_off) { /* any button wakes the screen for a moment */
                     backlight(1);
                     screen_off = 0;
