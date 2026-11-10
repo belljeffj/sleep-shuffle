@@ -11,3 +11,4 @@ echo "=== launch $(date) PLATFORM=${PLATFORM:-?} DEVICE=${DEVICE:-?} SDL_VIDEODR
 cd "$PAK_DIR" || exit 1
 ./sleep-shuffle-test "$DATA" "$LOG_DIR" >> "$LOG" 2>&1
 echo "=== exit code $? ===" >> "$LOG"
+sync

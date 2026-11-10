@@ -19,7 +19,9 @@
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 
+#include <execinfo.h>
 #include <glob.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +32,7 @@
 #include "font.h"
 #include "net.h"
 
-#define APP_VERSION "0.1.0-test"
+#define APP_VERSION "0.1.1-test"
 #define RING 8
 #define OUT_RATE 48000
 
@@ -50,7 +52,42 @@ static void logm(const char *fmt, ...) {
     va_end(ap);
     fputc('\n', g_log);
     fflush(g_log);
+    fsync(fileno(g_log)); /* the card may lose cached writes if the power button is held */
 }
+
+/* On a crash, write the signal and a backtrace to the log before dying. Addresses can be
+ * turned into source lines with addr2line against the same binary from the release. */
+static void on_crash(int sig) {
+    if (g_log) {
+        int fd = fileno(g_log);
+        char head[64];
+        int n = snprintf(head, sizeof head, "CRASH: signal %d, backtrace:\n", sig);
+        if (write(fd, head, (size_t)n) < 0) {}
+        void *frames[48];
+        int k = backtrace(frames, 48);
+        backtrace_symbols_fd(frames, k, fd);
+        fsync(fd);
+    }
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+/* If the main loop stops ticking for 20 s, give the device back to NextUI. */
+static volatile Uint32 g_heartbeat;
+static int watchdog(void *arg) {
+    (void)arg;
+    for (;;) {
+        SDL_Delay(1000);
+        Uint32 hb = g_heartbeat;
+        if (hb && SDL_GetTicks() - hb > 20000) {
+            logm("WATCHDOG: main loop stuck for 20 s, exiting");
+            _exit(3);
+        }
+    }
+    return 0;
+}
+
+#define STEP(...) logm("step: " __VA_ARGS__)
 
 static void ff_log(void *avcl, int level, const char *fmt, va_list vl) {
     (void)avcl;
@@ -588,6 +625,12 @@ int main(int argc, char **argv) {
     g_log = fopen(p, "a");
     snprintf(cfg_path, sizeof cfg_path, "%s/config.txt", data_dir);
     logm("==== Sleep Shuffle test pak %s ====", APP_VERSION);
+    signal(SIGSEGV, on_crash);
+    signal(SIGBUS, on_crash);
+    signal(SIGABRT, on_crash);
+    signal(SIGILL, on_crash);
+    signal(SIGFPE, on_crash);
+    logm("data=%s logs=%s SDL_VIDEODRIVER=%s", data_dir, log_dir, getenv("SDL_VIDEODRIVER") ? getenv("SDL_VIDEODRIVER") : "");
     av_log_set_callback(ff_log);
     srand((unsigned)time(NULL) ^ (unsigned)getpid());
 
@@ -600,6 +643,7 @@ int main(int argc, char **argv) {
     }
     cfg_save();
 
+    STEP("SDL_Init");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK) != 0) {
         logm("SDL_Init failed: %s", SDL_GetError());
         return 1;
@@ -609,11 +653,15 @@ int main(int argc, char **argv) {
         SW = dm.w;
         SH = dm.h;
     }
+    logm("display mode %dx%d @%dHz", dm.w, dm.h, dm.refresh_rate);
     int windowed = getenv("SS_WINDOWED") != NULL;
+    STEP("create window");
     if (windowed) SW = 640, SH = 480;
     SDL_Window *win = SDL_CreateWindow("Sleep Shuffle test", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SW, SH,
                                        windowed ? 0 : SDL_WINDOW_FULLSCREEN);
+    if (!win) logm("SDL_CreateWindow failed: %s", SDL_GetError());
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+    STEP("create renderer");
     ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
     SDL_RendererInfo ri;
@@ -633,7 +681,15 @@ int main(int argc, char **argv) {
              read_int_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq") / 1000);
     }
     SDL_ShowCursor(SDL_DISABLE);
+    STEP("first frame");
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+    SDL_RenderClear(ren);
+    SDL_RenderPresent(ren);
+    STEP("fonts");
     fonts_init();
+    text_c(0, SH / 2 - 10, 200, "Starting...");
+    SDL_RenderPresent(ren);
+    STEP("controllers");
 
     for (int i = 0; i < SDL_NumJoysticks(); i++) {
         logm("joystick %d: %s (game controller: %s)", i, SDL_JoystickNameForIndex(i),
@@ -642,6 +698,7 @@ int main(int argc, char **argv) {
         else SDL_JoystickOpen(i);
     }
 
+    STEP("audio");
     SDL_AudioSpec want = {0}, have;
     want.freq = OUT_RATE;
     want.format = AUDIO_S16SYS;
@@ -653,6 +710,9 @@ int main(int argc, char **argv) {
     P.cv = SDL_CreateCond();
     SDL_Thread *th = SDL_CreateThread(worker, "decode", NULL);
     atexit(restore_backlight);
+    g_heartbeat = SDL_GetTicks();
+    SDL_DetachThread(SDL_CreateThread(watchdog, "watchdog", NULL));
+    STEP("sign-in");
 
     int screen = S_NEED_SERVER;
     char qc_code[16] = "", qc_secret[128] = "", err[256] = "";
@@ -719,8 +779,10 @@ int main(int argc, char **argv) {
         }
     }
 
+    STEP("main loop");
     while (running) {
         Uint32 now = SDL_GetTicks();
+        g_heartbeat = now;
         int act_toggle = 0, act_next = 0;
         SDL_Event e;
         while (SDL_PollEvent(&e)) {

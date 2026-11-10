@@ -1,6 +1,7 @@
 # Desktop:  make
 # Device:   make CROSS=1 TC=<toolchain dir> FFMPEG=<ffmpeg install prefix>
-CFLAGS ?= -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11
+CFLAGS ?= -O2 -g -Wall -Wextra -Wno-unused-parameter -std=gnu11 -funwind-tables -fno-omit-frame-pointer
+LDFLAGS += -rdynamic
 ifdef CROSS
 CC := $(TC)/bin/aarch64-nextui-linux-gnu-gcc
 SYSROOT := $(TC)/aarch64-nextui-linux-gnu/libc
