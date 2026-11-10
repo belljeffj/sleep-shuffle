@@ -1,0 +1,8 @@
+font.h
+sleep-shuffle
+test/media/
+test/shots/
+test/fakesd/
+test/run/
+test/mock.log
+test/mock.pid

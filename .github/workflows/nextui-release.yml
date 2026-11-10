@@ -1,0 +1,75 @@
+name: NextUI release
+
+# Push a tag like nextui-v1.0.0 to build the RG SP pak and publish it as a release.
+# The app's Settings > Check for updates looks for the newest non-prerelease nextui-v* release.
+on:
+  push:
+    tags: ["nextui-v*"]
+
+permissions:
+  contents: write
+
+env:
+  # The checksum-pinned NextUI/TrimUI toolchain the PokeDaisy H700 builds use, via PokeDaisy's own setup script.
+  POKEDAISY_SHA: 135ac809a597230c1fe3ad6359ae0fe81e233583
+  FFMPEG_TAG: n6.1.2
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: sudo apt-get update && sudo apt-get install -y python3-pil fonts-dejavu-core zip
+
+      - name: Toolchain
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/lidor30/pokedaisy/$POKEDAISY_SHA/linux/setup_trimui_sdk.py" \
+            -o "$RUNNER_TEMP/setup_trimui_sdk.py"
+          python3 "$RUNNER_TEMP/setup_trimui_sdk.py" "$RUNNER_TEMP/trimui-sdk"
+          echo "TC=$RUNNER_TEMP/trimui-sdk/cross/x86_64-aarch64-nextui-linux-gnu" >> "$GITHUB_ENV"
+
+      - name: FFmpeg (static, only what the app needs)
+        run: |
+          git clone -q --depth 1 -b "$FFMPEG_TAG" https://github.com/FFmpeg/FFmpeg.git "$RUNNER_TEMP/ffsrc"
+          cd "$RUNNER_TEMP/ffsrc"
+          ./configure --prefix="$RUNNER_TEMP/ffmpeg" \
+            --enable-cross-compile --arch=aarch64 --target-os=linux \
+            --cross-prefix="$TC/bin/aarch64-nextui-linux-gnu-" --sysroot="$TC/aarch64-nextui-linux-gnu/libc" \
+            --extra-cflags="-mcpu=cortex-a53 -O2" \
+            --enable-static --disable-shared --enable-pic --enable-pthreads \
+            --disable-programs --disable-doc --disable-avdevice --disable-avfilter --disable-autodetect \
+            --disable-everything --enable-network \
+            --enable-protocol=http,tcp,file \
+            --enable-demuxer=hls,mpegts,mp3,aac,mov \
+            --enable-decoder=h264,aac,aac_fixed,mp3,mp3float \
+            --enable-parser=h264,aac,aac_latm,mpegaudio \
+            --enable-swscale --enable-swresample
+          make -j"$(nproc)" install
+
+      - name: Build
+        working-directory: nextui/app
+        run: |
+          VERSION="${GITHUB_REF_NAME#nextui-v}"
+          python3 ../tools/make_font.py /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf font.h font_small:24 font_med:32 font_big:64
+          make CROSS=1 TC="$TC" FFMPEG="$RUNNER_TEMP/ffmpeg" VERSION="$VERSION"
+          file sleep-shuffle
+          "$TC/bin/aarch64-nextui-linux-gnu-readelf" -d sleep-shuffle | grep NEEDED
+          echo "Highest glibc symbol version:"
+          "$TC/bin/aarch64-nextui-linux-gnu-objdump" -T sleep-shuffle | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#nextui-v}"
+          SD="$RUNNER_TEMP/sd"
+          PAK="$SD/Tools/h700/Sleep Shuffle.pak"
+          mkdir -p "$PAK"
+          cp nextui/app/sleep-shuffle nextui/app/launch.sh nextui/app/update.sh "$PAK/"
+          chmod +x "$PAK/sleep-shuffle" "$PAK/launch.sh" "$PAK/update.sh"
+          (cd "$SD" && zip -qr "$RUNNER_TEMP/SleepShuffle-h700.zip" Tools)
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/SleepShuffle-h700.zip" --target "$GITHUB_SHA" \
+            --title "RG SP $VERSION" \
+            --notes "Sleep Shuffle for the Anbernic RG SP (NextUI H700). To install by hand, unzip at the root of the NextUI SD card. After that, update from Settings > Check for updates. See nextui/app/README.md."

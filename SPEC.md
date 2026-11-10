@@ -17,6 +17,7 @@
 
 ## Server
 - A home address is tried first and a Tailscale address second. Either may be blank. The choice is re-checked when playback drops.
+- RG SP: plain `http://` only for now. A Tailscale gateway on `https://` needs HTTPS support that the RG SP build does not have yet.
 
 ## Sleep timer
 - Options: preset minutes, custom minutes, a number of episodes (1 = stop at the end of this one), or a clock time (today, or tomorrow if that time has passed).
@@ -31,7 +32,7 @@
 
 ## Platform differences
 - **Android:** touch lock, orientation lock, lock-screen and notification controls, extra on-screen dimmer. It checks for updates on launch.
-- **RG SP (NextUI):** While video plays with no controls showing, the first press of any button only brings up the controls over the still-playing video; buttons act on the controls after that. Face buttons follow the SNES labels printed on the device (A right, B bottom, X top, Y left), not SDL's positional names. Quick Connect sign-in, always-transcoded stream sized to the screen (720x480 on the RG SP), a video-off toggle (audio-only stream, backlight off), backlight dimming, and a manual "Check for updates" in Settings. Closing the lid pauses and sleeps, like a game.
+- **RG SP (NextUI):** While video plays with no controls showing, the first press of any button only brings up the controls over the still-playing video; buttons act on the controls after that. Face buttons follow the SNES labels printed on the device (A right, B bottom, X top, Y left), not SDL's positional names. Quick Connect sign-in, always-transcoded stream sized to the screen (720x480 on the RG SP), a video-off toggle (audio-only stream, screen off), an optional darkening of the picture, and a manual "Check for updates" in Settings. Closing the lid or pressing power pauses and sleeps, like a game, and playback resumes where it was. Switching video on or off opens a fresh stream from the current position instead of seeking. Skip intro is X while the intro plays, or from the player menu. Never shuffle is in the player menu (hold A).
 
 ## RG SP findings from the test pak (Nov 2026)
 - Jellyfin 12 rejects the `api_key` query parameter. Use `ApiKey=` (Jellyfin carries it into HLS sub-playlists) and the `Authorization` header.
