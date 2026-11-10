@@ -31,4 +31,11 @@
 
 ## Platform differences
 - **Android:** touch lock, orientation lock, lock-screen and notification controls, extra on-screen dimmer. It checks for updates on launch.
-- **RG SP (NextUI):** Quick Connect sign-in, always-transcoded 640x480 stream, a video-off toggle (audio-only stream, backlight off), backlight dimming, and a manual "Check for updates" in Settings. Closing the lid pauses and sleeps, like a game.
+- **RG SP (NextUI):** While video plays with no controls showing, the first press of any button only brings up the controls over the still-playing video; buttons act on the controls after that. Face buttons follow the SNES labels printed on the device (A right, B bottom, X top, Y left), not SDL's positional names. Quick Connect sign-in, always-transcoded stream sized to the screen (720x480 on the RG SP), a video-off toggle (audio-only stream, backlight off), backlight dimming, and a manual "Check for updates" in Settings. Closing the lid pauses and sleeps, like a game.
+
+## RG SP findings from the test pak (Nov 2026)
+- Jellyfin 12 rejects the `api_key` query parameter. Use `ApiKey=` (Jellyfin carries it into HLS sub-playlists) and the `Authorization` header.
+- Jellyfin serves 720x404 Baseline H.264 at about 1.3 Mbps. The H700 plays it at a steady 24 fps with no dropped frames and no audio underruns over 3.5 minutes, at about 1.4 of 4 cores and 51 to 54 C.
+- The audio-only endpoint (`/Audio/{id}/stream.mp3`) works for TV episodes and opens in about 1 second.
+- Seeking inside the HLS stream after switching back to video stalled for more than 8 seconds while Jellyfin restarted its transcode. The real app should open a fresh stream starting at the position instead.
+- The RG SP has no `/sys/class/backlight/*/bl_power`. NextUI blanks the screen through `/sys/class/graphics/fb0/blank`.
